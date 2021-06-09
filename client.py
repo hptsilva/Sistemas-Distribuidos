@@ -2,7 +2,6 @@ import xmlrpc.client as xmlrpclib
 
 client = xmlrpclib.ServerProxy("http://localhost:8000")
 
-sair = None
 verificador = 0
 
 while verificador == 0:
