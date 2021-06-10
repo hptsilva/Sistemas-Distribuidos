@@ -18,8 +18,9 @@ while verificador == 0:
 
     autenticacao = (client.verificacao(banco, conta, agencia, pin))
 
-    if autenticacao == 1:
+    if 'Bem-vindo' in autenticacao:
 
+        print(autenticacao)
         verificador = 1
         print("\n-------------------------------\nConta aceita\n-------------------------------\n")
 
@@ -27,10 +28,8 @@ while verificador == 0:
         print("\n-------------------------------\nConta errada")
 
 
-print("-------------------------------\n")
-print(client.mensagem(banco, conta, agencia, pin))
 print("\n-------------------------------\n")
-print("Digite o tipo de transação a ser feita: \n1 - Adicionar receita\n2 - Reduzir receita")
+print("Digite o tipo de transação a ser feita: \n1 - Enviar cobrança\n2 - Efetuar transferência")
 op = int(input())
 
 
@@ -55,5 +54,5 @@ elif op == 2:
     print("Digite o número da agência da conta alvo: ")
     agenciaDestino = int(input())
 
-print(client.transacao(op, bancoDestino, contaDestino, agenciaDestino, valor))
+print(client.transacao(op, bancoDestino, contaDestino, agenciaDestino, banco, conta, agencia, valor))
 

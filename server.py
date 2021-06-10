@@ -35,7 +35,7 @@ def mensagem(banco, conta, agencia, pin):
             return "Bem-vindo Senhor(a) " + str(dados[1]) + "\nMensagem: " + str(dados[8])
 
 
-def transacao(op, banco_Destino, conta_Destino, agencia_Destino, valor):
+def transacao(op, banco_Destino, conta_Destino, agencia_Destino, banco, conta, agencia, valor):
 
     global id
     if op == 1:

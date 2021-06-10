@@ -1,47 +1,194 @@
-
 from xmlrpc.server import SimpleXMLRPCServer
+import psycopg2
+from config import config
 
-clientes = [[1, 12345, 321, 800], [2, 54321, 123, 500]]
+print("Servidor do banco...")
+
+server = SimpleXMLRPCServer(("localhost", 8000))
 
 
-def proccess(src_account, dest_account, value):
-    src_balance = check_balance(src_account)
-    dest_balance = check_balance(dest_account)
+def verificacao(banco, conta, agencia, pin):
 
-    if src_balance >= value:
-        opr = operation(src_account, dest_account, src_balance, dest_balance, value)
-
-        if opr:
-            print('Transação realizado com sucesso')
-
-        else:
-            print('Transação não realizada')
+    data = get_data(banco, conta, agencia, pin)
+    
+    if len(data) == 0:
+        return "Conta errada - Digite novamente...\n-------------------------------"
 
     else:
-        print(f'O saldo de : {src_balance} insuficiente para efetuar a transação')
+        return "Bem-vindo Senhor(a) " + str(data[0]['nome']) + "\nMensagem: " + str(data[0]['mensagem'])
 
 
-def operation(src_account, dest_account, src_balance, dest_balance, value):
+def transacao(op, banco_destino, conta_destino, agencia_destino, banco, conta, agencia, valor):
+
+    if op == 1:
+
+        texto = "O valor a ser recebido do banco " + str(banco_destino) + " de conta " + str(conta_destino) + " e de número de agência " + str(agencia_destino) +" é de: " + str(valor)
+
+        client = get_client(banco_destino, conta_destino, agencia_destino)
+
+        if len(client) == 0:
+
+            return "Conta não encontrada"
+
+        else:
+            retorno = insert_msg(banco_destino, conta_destino, agencia_destino, texto)
+
+            if retorno:
+                return 'Mensagem enviada'
+
+            else:
+                return 'Falha na operação'
+
+
+
+    elif op == 2:
+
+        client = get_client(banco_destino, conta_destino, agencia_destino)
+
+        if len(client) == 0:
+
+            return "Conta não encontrada"
+
+        else:
+            
+            saldo_destino = check_balance(banco_destino, conta_destino, agencia_destino)
+
+            saldo = check_balance(banco, conta, agencia)     
+
+            novo_saldo = saldo - valor
+
+            if  novo_saldo < 0:
+
+                return 'Você não tem dinheiro suficiente na conta'
+
+            else:
+                retorno = operation(banco_destino, conta_destino, agencia_destino, banco, conta, agencia, valor, novo_saldo, saldo_destino)
+                if retorno:
+                    return "Transferência realizada"
+
+                else:
+                    return "Falha na transação"    
+
+
+def insert_msg(banco_destino, conta_destino, agencia_destino, texto):
+
     try:
 
         conn = connect()
 
         cur = conn.cursor()
 
-        new_balance = src_balance - value
-
         cur.execute(f"""
-                    UPDATE public.usuarios
-                        SET saldo={new_balance}
-                        WHERE conta = '{src_account}'
+                    UPDATE public.usuarios 
+                    SET mensagem='{texto}'
+                    WHERE banco = '{banco_destino}' AND conta = '{conta_destino}' AND agencia = '{agencia_destino}'
         """)
 
-        new_balance = dest_balance + value
+
+        conn.commit()
+
+        cur.close()
+
+    except Exception as error:
+        print(error)
+
+    finally:
+        if conn is not None:
+            conn.close()
+            return True
+
+
+
+
+def get_data(banco, conta, agencia, pin):
+
+    try:
+
+        conn = connect()
+
+        cur = conn.cursor()
+
+        data = []
+
+        cur.execute(f"""
+                    SELECT 
+                    nome,
+                    mensagem
+                    FROM public.usuarios
+                    WHERE banco = '{banco}' AND conta = '{conta}' AND agencia = '{agencia}' AND pin = '{pin}'
+        """)
+
+        desc = cur.description
+
+        data = [ dict( zip( [col[0] for col in desc ], row)) for row in cur.fetchall()]
+
+        cur.close()
+
+    except Exception as error:
+        print(error)
+
+    finally:
+        if conn is not None:
+            conn.close()
+            return data
+
+def get_client(banco, conta, agencia):
+
+    try:
+
+        conn = connect()
+
+        cur = conn.cursor()
+
+        data = []
+
+        cur.execute(f"""
+                    SELECT 
+                    nome,
+                    mensagem
+                    FROM public.usuarios
+                    WHERE banco = '{banco}' AND conta = '{conta}' AND agencia = '{agencia}'
+        """)
+
+        desc = cur.description
+
+        data = [ dict( zip( [col[0] for col in desc ], row)) for row in cur.fetchall()]
+
+        cur.close()
+
+
+
+    except Exception as error:
+        print(error)
+
+    finally:
+        if conn is not None:
+            conn.close()
+
+    return data
+
+
+
+def operation(banco_destino, conta_destino, agencia_destino, banco, conta, agencia, valor, novo_saldo, saldo_destino):
+
+    try:
+
+        conn = connect()
+
+        cur = conn.cursor()
 
         cur.execute(f"""
                     UPDATE public.usuarios
-                        SET saldo={new_balance}
-                        WHERE conta = '{dest_account}'
+                        SET saldo={novo_saldo}
+                        WHERE conta = '{conta}' AND banco = '{banco}' AND agencia = '{agencia}' 
+        """)
+
+        saldo_destino +=  valor
+
+        cur.execute(f"""
+                    UPDATE public.usuarios
+                        SET saldo={saldo_destino}
+                        WHERE conta = '{conta_destino}' AND banco = '{banco_destino}' AND agencia = '{agencia_destino}' 
         """)
 
         updated_rows = cur.rowcount
@@ -62,7 +209,8 @@ def operation(src_account, dest_account, src_balance, dest_balance, value):
     return updated_rows
 
 
-def check_balance(account):
+def check_balance(banco, conta, agencia):
+    
     try:
 
         conn = connect()
@@ -73,7 +221,7 @@ def check_balance(account):
                     SELECT
                     saldo::float 
                     FROM usuarios
-                    WHERE conta = '{account}'
+                    WHERE conta = '{conta}' AND banco = '{banco}' AND agencia = '{agencia}'
         """)
 
         balance = cur.fetchall()
@@ -90,11 +238,26 @@ def check_balance(account):
             conn.close()
             return balance[0][0]
 
+def connect():
+    
+    conn = None
+    try:
 
-print("Servidor do banco...")
+        params = config()
 
-server = SimpleXMLRPCServer(("localhost", 8000))
+        print('Connecting to the PostgreSQL database...')
+        conn = psycopg2.connect(**params)
+		
+    except Exception as error:
+        print(error)
 
-# server.register_function()
+    finally:
+        if conn is not None:
+            return conn
+
+
+
+server.register_function(verificacao)
+server.register_function(transacao)
 
 server.serve_forever()
